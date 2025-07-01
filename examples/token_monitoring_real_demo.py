@@ -33,6 +33,7 @@ def patch_graphiti_for_monitoring():
     # Import the clients we need to patch
     from graphiti_core.llm_client.openai_client import OpenAIClient
     from graphiti_core.embedder.openai import OpenAIEmbedder
+    from graphiti_core.llm_client.config import DEFAULT_MAX_TOKENS, ModelSize
     from functools import wraps
     
     print("🔧 Patching Graphiti clients for token monitoring...")
@@ -43,17 +44,17 @@ def patch_graphiti_for_monitoring():
     
     # Create monitored version of LLM generation
     @wraps(original_llm_generate)
-    async def monitored_llm_generate(self, messages, response_model=None, **kwargs):
+    async def monitored_llm_generate(self, messages, response_model=None, max_tokens=DEFAULT_MAX_TOKENS, model_size=ModelSize.medium):
         """Wrapper that captures token usage from real OpenAI responses."""
         operation = "generate_response"
         if response_model:
             operation = f"extract_{response_model.__name__.lower()}"
         
-        print(f"   📊 Monitoring LLM call ({operation}) with {self.llm_config.model}...")
+        print(f"   📊 Monitoring LLM call ({operation}) with {self.model}...")
         
         try:
             # Call the real OpenAI API
-            result = await original_llm_generate(self, messages, response_model, **kwargs)
+            result = await original_llm_generate(self, messages, response_model, max_tokens, model_size)
             
             # Extract token usage from the actual response
             if hasattr(result, '_raw_response'):
@@ -62,7 +63,7 @@ def patch_graphiti_for_monitoring():
                     from graphiti_core.telemetry import log_llm_usage
                     log_llm_usage(
                         provider="openai",
-                        model=self.llm_config.model,
+                        model=self.model,
                         input_tokens=raw.usage.prompt_tokens,
                         output_tokens=raw.usage.completion_tokens,
                         operation=operation,
@@ -82,7 +83,7 @@ def patch_graphiti_for_monitoring():
             from graphiti_core.telemetry import log_llm_usage
             log_llm_usage(
                 provider="openai",
-                model=self.llm_config.model,
+                model=self.model,
                 input_tokens=0,
                 output_tokens=0,
                 operation=operation,
@@ -92,20 +93,20 @@ def patch_graphiti_for_monitoring():
     
     # Create monitored version of embedding creation
     @wraps(original_embedder_create)
-    async def monitored_embedder_create(self, input_text, **kwargs):
+    async def monitored_embedder_create(self, input_data, **kwargs):
         """Wrapper that captures token usage from real embedding API calls."""
         print(f"   📊 Monitoring embedding call with {self.config.embedding_model}...")
         
         try:
             # Estimate input tokens (embeddings don't return token counts)
-            if isinstance(input_text, list):
-                total_chars = sum(len(str(text)) for text in input_text)
+            if isinstance(input_data, list):
+                total_chars = sum(len(str(text)) for text in input_data)
                 estimated_tokens = max(1, total_chars // 4)  # Rough estimate
             else:
-                estimated_tokens = max(1, len(str(input_text)) // 4)
+                estimated_tokens = max(1, len(str(input_data)) // 4)
             
             # Call the real embedding API
-            result = await original_embedder_create(self, input_text, **kwargs)
+            result = await original_embedder_create(self, input_data, **kwargs)
             
             # Log the usage
             from graphiti_core.telemetry import log_embedding_usage
@@ -117,7 +118,7 @@ def patch_graphiti_for_monitoring():
                 api_key=getattr(self.client, 'api_key', None),
                 metadata={
                     "timestamp": datetime.now().isoformat(),
-                    "input_type": "list" if isinstance(input_text, list) else "string",
+                    "input_type": "list" if isinstance(input_data, list) else "string",
                     "estimated": True  # Since we're estimating
                 }
             )
@@ -176,7 +177,7 @@ async def show_token_report(label: str):
             print(f"    {service}: {stats['requests']} requests, {stats['tokens']:,} tokens")
 
 
-async def main():
+async def main(skip_confirmation=False):
     """Run the real token monitoring demo."""
     
     print("🚀 REAL TOKEN MONITORING DEMO")
@@ -188,16 +189,23 @@ async def main():
         print("\n❌ Please set OPENAI_API_KEY environment variable")
         return
     
-    # Confirm with user
-    print("\nThis demo will:")
-    print("  • Make real calls to OpenAI API")
-    print("  • Create real data in Neo4j")
-    print("  • Cost approximately $0.02-0.05")
-    print("\nDo you want to continue? (yes/no): ", end="")
-    
-    if input().lower() != 'yes':
-        print("Demo cancelled.")
-        return
+    # Confirm with user (unless skipped)
+    if not skip_confirmation:
+        print("\nThis demo will:")
+        print("  • Make real calls to OpenAI API")
+        print("  • Create real data in Neo4j")
+        print("  • Cost approximately $0.02-0.05")
+        print("\nDo you want to continue? (yes/no): ", end="")
+        
+        if input().lower() != 'yes':
+            print("Demo cancelled.")
+            return
+    else:
+        print("\n✅ Running with --confirm flag (skipping confirmation)")
+        print("This demo will:")
+        print("  • Make real calls to OpenAI API")
+        print("  • Create real data in Neo4j")
+        print("  • Cost approximately $0.02-0.05")
     
     # Initialize monitoring
     if not _TOKEN_MONITORING_AVAILABLE:
@@ -329,7 +337,7 @@ async def main():
 if __name__ == "__main__":
     # Add safety check
     if len(sys.argv) > 1 and sys.argv[1] == "--confirm":
-        asyncio.run(main())
+        asyncio.run(main(skip_confirmation=True))
     else:
         print("📋 REAL DEMO PLAN")
         print("="*60)
