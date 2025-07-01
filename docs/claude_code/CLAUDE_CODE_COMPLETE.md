@@ -33,6 +33,8 @@ Graphiti is a Python framework for building temporally-aware knowledge graphs de
 - **Multi-engine classes**: `config_multi_engine.py` with Pydantic schemas
 - **Environment templates**: `.env.multi-engine.example`
 - **Implementation files**: `mcp_dual_engine_complete.py`
+- **Token Monitoring System**: Complete implementation in `graphiti_core/telemetry/`
+  - See [Token Monitoring Documentation](../token_monitoring/README.md)
 - **Git status**: Clean working tree, all changes committed
 
 ---
