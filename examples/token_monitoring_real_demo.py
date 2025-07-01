@@ -38,7 +38,7 @@ def patch_graphiti_for_monitoring():
     print("🔧 Patching Graphiti clients for token monitoring...")
     
     # Save original methods
-    original_llm_generate = OpenAIClient._generate_response_base
+    original_llm_generate = OpenAIClient._generate_response
     original_embedder_create = OpenAIEmbedder.create
     
     # Create monitored version of LLM generation
@@ -138,7 +138,7 @@ def patch_graphiti_for_monitoring():
             raise
     
     # Apply the patches
-    OpenAIClient._generate_response_base = monitored_llm_generate
+    OpenAIClient._generate_response = monitored_llm_generate
     OpenAIEmbedder.create = monitored_embedder_create
     
     print("   ✅ Monitoring patches applied successfully")

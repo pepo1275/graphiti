@@ -199,11 +199,11 @@ def test_patching_mechanism():
         import inspect
         
         # Save original methods
-        original_llm = OpenAIClient._generate_response_base
+        original_llm = OpenAIClient._generate_response
         original_embed = OpenAIEmbedder.create
         
         # Test method existence
-        assert hasattr(OpenAIClient, '_generate_response_base')
+        assert hasattr(OpenAIClient, '_generate_response')
         assert hasattr(OpenAIEmbedder, 'create')
         print("   ✅ Original methods exist")
         
@@ -213,13 +213,13 @@ def test_patching_mechanism():
         print("   ✅ Patching applied")
         
         # Test methods are still callable
-        assert callable(OpenAIClient._generate_response_base)
+        assert callable(OpenAIClient._generate_response)
         assert callable(OpenAIEmbedder.create)
         print("   ✅ Patched methods callable")
         
         # Test signature preservation
         original_sig = inspect.signature(original_llm)
-        patched_sig = inspect.signature(OpenAIClient._generate_response_base)
+        patched_sig = inspect.signature(OpenAIClient._generate_response)
         # Should have same or compatible parameters
         assert len(original_sig.parameters) <= len(patched_sig.parameters) + 1  # Allow for wrapper
         print("   ✅ Method signatures preserved")
@@ -249,7 +249,7 @@ async def test_mocked_api_calls():
         # Create mock client
         mock_openai_client = AsyncMock()
         config = LLMConfig(model="gpt-4o")
-        client = OpenAIClient(config, mock_openai_client)
+        client = OpenAIClient(config, cache=False, client=mock_openai_client)
         
         # Create mock response
         mock_response = Mock()
@@ -260,9 +260,9 @@ async def test_mocked_api_calls():
         mock_response._raw_response.usage.total_tokens = 750
         
         # Mock the original method
-        with patch.object(OpenAIClient, '_generate_response_base', return_value=mock_response) as mock_method:
+        with patch.object(OpenAIClient, '_generate_response', return_value=mock_response) as mock_method:
             # Call the method
-            result = await client._generate_response_base([{"role": "user", "content": "test"}])
+            result = await client._generate_response([{"role": "user", "content": "test"}])
             
             # Verify call was made
             mock_method.assert_called_once()
