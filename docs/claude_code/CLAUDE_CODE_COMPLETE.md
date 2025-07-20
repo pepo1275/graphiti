@@ -39,6 +39,66 @@ Graphiti is a Python framework for building temporally-aware knowledge graphs de
 
 ---
 
+## 🛡️ MEJORES PRÁCTICAS DE DESARROLLO (OBLIGATORIAS POR DEFECTO)
+
+### **1. Backup y Seguridad (SIEMPRE)**
+- ✅ **Safety commits** ANTES de cualquier cambio crítico
+- ✅ **Backup configuraciones** (claude_desktop_config.json) antes de modificar
+- ✅ **Backup bases de datos** Neo4j antes de evaluaciones  
+- ✅ **Push a remote** después de cada fase exitosa
+- ✅ **Rollback procedures** documentados y probados
+
+### **2. Gestión de Ramas (OBLIGATORIO)**
+- ✅ **NUNCA trabajar en main**: Siempre crear rama específica
+- ✅ **Nombres descriptivos**: `evaluation/embeddings-comparison`, `feature/mcp-manager`
+- ✅ **Push regular**: Backup en remote cada 30 min de trabajo
+- ✅ **Ramas limpias**: Un objetivo por rama, commits frecuentes
+
+### **3. Testing Progresivo (MANDATORIO)**
+- ✅ **Pre-testing**: Verificar estado inicial antes de cambios
+- ✅ **Progressive testing**: unit → integration → system
+- ✅ **Post-testing**: Validar que todo funciona después
+- ✅ **Regression tests**: Asegurar que no se rompe funcionalidad existente
+- ✅ **Performance baselines**: Documentar impactos de rendimiento
+
+### **4. Documentación Obligatoria**
+- ✅ **Documentation-first**: Documentar ANTES de implementar
+- ✅ **Actualizar docs**: Durante cambios, no después
+- ✅ **Commits descriptivos**: Explicar QUÉ y POR QUÉ
+- ✅ **API documentation**: Para toda nueva funcionalidad
+
+### **5. Herramientas de Calidad (AUTOMÁTICO)**
+- ✅ **Ruff**: `make lint` antes de commits
+- ✅ **Mypy**: `make check` para type checking
+- ✅ **Pytest**: `make test` antes de PR
+- ✅ **Quality gates**: No proceder si fallan checks
+
+### **6. TodoWrite Tool (OBLIGATORIO)**
+- ✅ **Planificación**: Usar TodoWrite para tareas complejas (>3 pasos)
+- ✅ **Tracking**: Marcar in_progress ANTES de empezar
+- ✅ **Completion**: Marcar completed INMEDIATAMENTE al terminar
+- ✅ **Un solo task**: Solo UNA tarea en in_progress a la vez
+
+### **7. Condiciones de STOP (INMEDIATO)**
+- ⛔ **API errors**: 401, 403, import errors
+- ⛔ **Startup failures**: Claude Desktop, MCP, aplicación
+- ⛔ **Basic tests fail**: add_memory, search_memory_nodes
+- ⛔ **Dependencies**: Missing deps, version conflicts
+- ⛔ **Regression**: Funcionalidad existente rota
+
+### **8. Protocolo de Safety Commits**
+```bash
+# ANTES de cualquier cambio crítico:
+git add -A
+git commit -m "safety: pre-[action] snapshot"
+git push origin [branch-name]
+
+# Backup configuraciones
+cp ~/.config/Claude\ Desktop/claude_desktop_config.json ~/backup_config_$(date +%Y%m%d_%H%M).json
+```
+
+---
+
 ## Critical Instructions
 
 ### 🚨 MANTENER FUNCIONALIDAD EXISTENTE (OBLIGATORIO)
@@ -457,7 +517,49 @@ def test_performance_baseline():
 **Immediate Task**: Obtain GOOGLE_API_KEY and verify API connectivity
 **Success Criteria**: All API keys working, structured logging active, OpenAI remaining as primary
 
+---
+
+## 🎯 PLAN ESPECÍFICO: FASE 1 EVALUACIÓN EMBEDDINGS
+
+### **Objetivo Actual (Branch: evaluation/embeddings-comparison)**
+Evaluar configuraciones óptimas de embeddings (OpenAI vs Gemini) siguiendo las mejores prácticas documentadas.
+
+### **Pre-Ejecución Checklist (OBLIGATORIO)**
+```bash
+# 1. Safety Setup
+git status && git log --oneline -3
+git add -A && git commit -m "safety: pre-evaluation snapshot"
+cp ~/.config/Claude\ Desktop/claude_desktop_config.json ~/backup_config_$(date +%Y%m%d_%H%M).json
+
+# 2. Environment Verification  
+echo $OPENAI_API_KEY | cut -c1-8
+echo $GOOGLE_API_KEY | cut -c1-8
+docker ps | grep neo4j
+
+# 3. Pre-Testing
+uv run python -c "from graphiti_core import Graphiti; print('✅ Graphiti OK')"
+```
+
+### **Ejecución con Mejores Prácticas**
+1. **TodoWrite**: Planificar todos los pasos
+2. **Branch**: `git checkout -b evaluation/embeddings-comparison`
+3. **Progressive Testing**: Cada módulo antes de continuar
+4. **Safety Commits**: Cada 30 min o cambio crítico
+5. **Documentation**: Actualizar durante desarrollo
+
+### **Post-Ejecución Validation**
+```bash
+# Quality checks
+make lint && make check && make test
+
+# Regression tests
+uv run python -c "from graphiti_core import Graphiti; print('✅ No regression')"
+
+# Final backup
+git push origin evaluation/embeddings-comparison
+```
+
 **Claude Code Command:**
 ```
-Implement Phase 2.1 of docs/claude_code/CLAUDE_CODE_COMPLETE.md: Configure Gemini and Claude Sonnet 4 API keys while maintaining OpenAI as primary engine. Use structured logging and validation schemas as specified.
+Implement Phase 1 Embeddings Evaluation from docs/ROADMAP_GLOBAL_SISTEMA_CONOCIMIENTO_VIVO.md following ALL best practices in docs/claude_code/CLAUDE_CODE_COMPLETE.md. Use TodoWrite tool for planning and track progress step-by-step.
 ```
