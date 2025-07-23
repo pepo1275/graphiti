@@ -38,7 +38,8 @@ class BasicEvaluator:
         start_time = time.time()
         
         try:
-            # Mock basic operations
+            # Mock basic operations with some delay
+            time.sleep(0.001)  # Simulate work
             node_count = 10  # Would get from graphiti
             edge_count = 20  # Would get from graphiti
             success = True
