@@ -25,9 +25,76 @@ from .client import EmbedderClient, EmbedderConfig
 DEFAULT_EMBEDDING_MODEL = 'embedding-001'
 
 
+def detect_content_type(content: str) -> str:
+    """
+    Detectar si el contenido es código o texto regular para optimizar task_type
+    
+    Args:
+        content: Texto a analizar
+        
+    Returns:
+        "CODE_RETRIEVAL_QUERY" para contenido de código
+        "RETRIEVAL_QUERY" para texto regular
+    """
+    if not content or not isinstance(content, str):
+        return "RETRIEVAL_QUERY"
+    
+    # Indicadores de código Python
+    python_indicators = [
+        'def ', 'class ', 'import ', 'from ', 'return ',
+        'if ', 'for ', 'while ', 'try:', 'except:', 'with ',
+        '    ', '\t'  # Indentación típica de Python
+    ]
+    
+    # Indicadores de código Cypher
+    cypher_indicators = [
+        'MATCH ', 'WHERE ', 'RETURN ', 'CREATE ', 'WITH ',
+        'ORDER BY', 'LIMIT ', 'DISTINCT ', 'UNION ',
+        '()-[', ']->(', '<-[', ']-', 'CALL '
+    ]
+    
+    # Indicadores de otros lenguajes
+    other_code_indicators = [
+        'function ', 'const ', 'var ', 'let ', '=>',
+        'SELECT ', 'FROM ', 'INSERT ', 'UPDATE ', 'DELETE ',
+        '#include', 'public class', 'private ', 'protected '
+    ]
+    
+    content_upper = content.upper()
+    
+    # Contar indicadores
+    python_score = sum(1 for indicator in python_indicators if indicator in content)
+    cypher_score = sum(1 for indicator in cypher_indicators if indicator in content_upper)
+    other_score = sum(1 for indicator in other_code_indicators if indicator in content_upper)
+    
+    total_code_score = python_score + cypher_score + other_score
+    
+    # Si tiene 2 o más indicadores de código, clasificar como código
+    if total_code_score >= 2:
+        return "CODE_RETRIEVAL_QUERY"
+    
+    # Verificar patrones específicos que son claramente código
+    code_patterns = [
+        '```',  # Bloques de código markdown
+        '{', '}',  # Llaves de programación
+        'def ', 'function(',  # Definiciones de función
+        'SELECT', 'MATCH',  # Queries de base de datos
+    ]
+    
+    pattern_score = sum(1 for pattern in code_patterns if pattern in content_upper)
+    if pattern_score >= 1:
+        return "CODE_RETRIEVAL_QUERY"
+    
+    return "RETRIEVAL_QUERY"
+
+
 class GeminiEmbedderConfig(EmbedderConfig):
     embedding_model: str = Field(default=DEFAULT_EMBEDDING_MODEL)
     api_key: str | None = None
+    task_type: str | None = Field(
+        default=None, 
+        description="Task type for embeddings (e.g., 'CODE_RETRIEVAL_QUERY', 'RETRIEVAL_QUERY')"
+    )
 
 
 class GeminiEmbedder(EmbedderClient):
@@ -50,6 +117,7 @@ class GeminiEmbedder(EmbedderClient):
     ) -> list[float]:
         """
         Create embeddings for the given input data using Google's Gemini embedding model.
+        Automatically detects content type and applies appropriate task_type optimization.
 
         Args:
             input_data: The input data to create embeddings for. Can be a string, list of strings,
@@ -58,11 +126,25 @@ class GeminiEmbedder(EmbedderClient):
         Returns:
             A list of floats representing the embedding vector.
         """
+        # Determinar task_type
+        task_type = self.config.task_type
+        if not task_type and isinstance(input_data, str):
+            # Detección automática solo para strings
+            task_type = detect_content_type(input_data)
+        
+        # Preparar configuración con task_type si está disponible
+        embed_config = types.EmbedContentConfig(
+            output_dimensionality=self.config.embedding_dim
+        )
+        
+        if task_type:
+            embed_config.task_type = task_type
+        
         # Generate embeddings
         result = await self.client.aio.models.embed_content(
             model=self.config.embedding_model or DEFAULT_EMBEDDING_MODEL,
             contents=[input_data],  # type: ignore[arg-type]  # mypy fails on broad union type
-            config=types.EmbedContentConfig(output_dimensionality=self.config.embedding_dim),
+            config=embed_config,
         )
 
         if not result.embeddings or len(result.embeddings) == 0 or not result.embeddings[0].values:
@@ -71,11 +153,27 @@ class GeminiEmbedder(EmbedderClient):
         return result.embeddings[0].values
 
     async def create_batch(self, input_data_list: list[str]) -> list[list[float]]:
+        """Create embeddings for a batch of text inputs with task_type optimization."""
+        
+        # Para batch, usar task_type configurado o detectar del primer elemento
+        task_type = self.config.task_type
+        if not task_type and input_data_list:
+            # Detectar del primer elemento como representativo
+            task_type = detect_content_type(input_data_list[0])
+        
+        # Preparar configuración
+        embed_config = types.EmbedContentConfig(
+            output_dimensionality=self.config.embedding_dim
+        )
+        
+        if task_type:
+            embed_config.task_type = task_type
+        
         # Generate embeddings
         result = await self.client.aio.models.embed_content(
             model=self.config.embedding_model or DEFAULT_EMBEDDING_MODEL,
             contents=input_data_list,  # type: ignore[arg-type]  # mypy fails on broad union type
-            config=types.EmbedContentConfig(output_dimensionality=self.config.embedding_dim),
+            config=embed_config,
         )
 
         if not result.embeddings or len(result.embeddings) == 0:

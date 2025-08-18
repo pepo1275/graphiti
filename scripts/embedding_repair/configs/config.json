@@ -1,0 +1,25 @@
+{
+  "paths": {
+    "graphiti_base": "/Users/pepo/graphiti-pepo-local",
+    "embedder_client": "/Users/pepo/graphiti-pepo-local/graphiti_core/embedder/client.py",
+    "claude_config": "/Users/pepo/Library/Application Support/Claude/claude_desktop_config.json",
+    "backup_base_dir": "/Users/pepo/graphiti-pepo-local/scripts/embedding_repair/backups"
+  },
+  "neo4j": {
+    "uri": "bolt://localhost:7687",
+    "user": "neo4j",
+    "password": "pepo_graphiti_2025"
+  },
+  "gemini": {
+    "api_key_env": "GEMINI_API_KEY",
+    "api_key_fallback": "AIzaSyAiFOP6yBk2qyDi6c0JsrL9GnngYqPvCFw",
+    "model": "models/embedding-001",
+    "dimensions": 3072,
+    "task_type": "RETRIEVAL_DOCUMENT"
+  },
+  "execution": {
+    "max_entities_per_batch": 10,
+    "rate_limit_delay": 0.1,
+    "default_dry_run": true
+  }
+}

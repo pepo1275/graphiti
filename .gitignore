@@ -4,6 +4,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Claude Code methodology tracking
+.claude/methodology_status.json
+.claude/checkpoint_log.json
+.claude/temp/
+.claude/*.log
+
 # C extensions
 *.so
 

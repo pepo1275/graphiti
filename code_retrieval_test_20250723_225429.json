@@ -1,0 +1,65 @@
+{
+  "test_info": {
+    "timestamp": "2025-07-23T22:51:41.494698",
+    "test_type": "Fast CODE_RETRIEVAL_QUERY Comparison",
+    "version": "1.0"
+  },
+  "configuration": {
+    "llm": "gemini-2.5-pro",
+    "embedding_model": "gemini-embedding-001",
+    "dimensions": 3072,
+    "instances": {
+      "code_retrieval": "bolt://localhost:7693 (graphiti-neo4j-gemini)",
+      "standard": "bolt://localhost:7687 (graphiti-neo4j)"
+    }
+  },
+  "results": [
+    {
+      "case_id": "python_code",
+      "case_name": "Código Python - Fibonacci",
+      "case_type": "code",
+      "query": "fibonacci recursive function",
+      "results": {
+        "with_code_retrieval": {
+          "success": false,
+          "error": "{code: Neo.ClientError.Statement.ArgumentError} {message: Invalid input for 'vector.similarity.cosine()': The supplied vectors do not have the same number of dimensions.}"
+        },
+        "standard": {
+          "success": false,
+          "error": "{code: Neo.ClientError.Statement.ArgumentError} {message: Invalid input for 'vector.similarity.cosine()': The supplied vectors do not have the same number of dimensions.}"
+        }
+      },
+      "comparison": {
+        "winner": "INCONCLUSIVE",
+        "reason": "One or both tests failed"
+      }
+    },
+    {
+      "case_id": "regular_text",
+      "case_name": "Texto Regular - IA",
+      "case_type": "text",
+      "query": "artificial intelligence information processing",
+      "results": {
+        "with_code_retrieval": {
+          "success": false,
+          "error": "{code: Neo.ClientError.Statement.ArgumentError} {message: Invalid input for 'vector.similarity.cosine()': The supplied vectors do not have the same number of dimensions.}"
+        },
+        "standard": {
+          "success": false,
+          "error": "{code: Neo.ClientError.Statement.ArgumentError} {message: Invalid input for 'vector.similarity.cosine()': The supplied vectors do not have the same number of dimensions.}"
+        }
+      },
+      "comparison": {
+        "winner": "INCONCLUSIVE",
+        "reason": "One or both tests failed"
+      }
+    }
+  ],
+  "summary": {
+    "total_cases": 2,
+    "code_retrieval_wins": 0,
+    "standard_wins": 0,
+    "ties": 0,
+    "conclusion": "Rendimiento equivalente entre ambos métodos"
+  }
+}

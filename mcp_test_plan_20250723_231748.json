@@ -1,0 +1,105 @@
+{
+  "test_info": {
+    "timestamp": "2025-07-23T23:17:48.317558",
+    "method": "MCP Tools",
+    "description": "CODE_RETRIEVAL_QUERY comparison using MCP services"
+  },
+  "test_cases": [
+    {
+      "id": "python_fibonacci",
+      "name": "Código Python - Fibonacci",
+      "type": "code",
+      "content": "\ndef fibonacci(n):\n    if n <= 1:\n        return n\n    return fibonacci(n-1) + fibonacci(n-2)\n\n# Función recursiva para calcular secuencia de Fibonacci\n# Ejemplo: fibonacci(10) = 55\n",
+      "search_queries": [
+        "fibonacci recursive function python",
+        "calculate fibonacci sequence",
+        "recursive algorithm fibonacci"
+      ]
+    },
+    {
+      "id": "cypher_query",
+      "name": "Query Cypher - Personas y Empresas",
+      "type": "code",
+      "content": "\nMATCH (p:Person)-[:WORKS_AT]->(c:Company)\nWHERE p.age > 30 AND c.industry = 'Technology'\nRETURN p.name, c.name, p.salary\nORDER BY p.salary DESC\nLIMIT 10\n",
+      "search_queries": [
+        "cypher query person company relationship",
+        "find employees in technology companies",
+        "graph database query workers"
+      ]
+    },
+    {
+      "id": "regular_text",
+      "name": "Texto Regular - Descripción IA",
+      "type": "text",
+      "content": "\nArtificial intelligence represents a transformative technology that enables machines to \nsimulate human cognitive processes. Machine learning algorithms can identify patterns \nin large datasets and make predictions or decisions without explicit programming.\n",
+      "search_queries": [
+        "artificial intelligence machine learning",
+        "cognitive processes algorithms",
+        "pattern identification datasets"
+      ]
+    }
+  ],
+  "results": {
+    "mcp_tests": [
+      {
+        "case_id": "python_fibonacci",
+        "case_name": "Código Python - Fibonacci",
+        "case_type": "code",
+        "queries": [
+          "fibonacci recursive function python",
+          "calculate fibonacci sequence",
+          "recursive algorithm fibonacci"
+        ],
+        "mcp_operations": {
+          "gemini_add": "add_memory(group_id='test_gemini_code', content='Código Python - Fibonacci', ...)",
+          "openai_add": "add_memory(group_id='test_openai_standard', content='Código Python - Fibonacci', ...)",
+          "search_operations": 6
+        },
+        "expected_benefit": "HIGH"
+      },
+      {
+        "case_id": "cypher_query",
+        "case_name": "Query Cypher - Personas y Empresas",
+        "case_type": "code",
+        "queries": [
+          "cypher query person company relationship",
+          "find employees in technology companies",
+          "graph database query workers"
+        ],
+        "mcp_operations": {
+          "gemini_add": "add_memory(group_id='test_gemini_code', content='Query Cypher - Personas y Empresas', ...)",
+          "openai_add": "add_memory(group_id='test_openai_standard', content='Query Cypher - Personas y Empresas', ...)",
+          "search_operations": 6
+        },
+        "expected_benefit": "HIGH"
+      },
+      {
+        "case_id": "regular_text",
+        "case_name": "Texto Regular - Descripción IA",
+        "case_type": "text",
+        "queries": [
+          "artificial intelligence machine learning",
+          "cognitive processes algorithms",
+          "pattern identification datasets"
+        ],
+        "mcp_operations": {
+          "gemini_add": "add_memory(group_id='test_gemini_code', content='Texto Regular - Descripción IA', ...)",
+          "openai_add": "add_memory(group_id='test_openai_standard', content='Texto Regular - Descripción IA', ...)",
+          "search_operations": 6
+        },
+        "expected_benefit": "LOW"
+      }
+    ],
+    "summary": {
+      "total_test_cases": 3,
+      "code_cases": 2,
+      "text_cases": 1,
+      "total_mcp_operations": 24,
+      "instances_to_compare": [
+        "graphiti-neo4j-gemini",
+        "graphiti-neo4j-openai"
+      ],
+      "status": "READY_FOR_EXECUTION"
+    }
+  }
+}
