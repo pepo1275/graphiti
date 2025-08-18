@@ -1,0 +1,38 @@
+{
+  "session_start": "2025-08-18T09:03:13.849433",
+  "checkpoints": {
+    "setup": {
+      "status": "pending",
+      "timestamp": null
+    },
+    "analysis": {
+      "status": "pending",
+      "timestamp": null
+    },
+    "plan": {
+      "status": "pending",
+      "timestamp": null
+    },
+    "design": {
+      "status": "pending",
+      "timestamp": null
+    },
+    "backup": {
+      "status": "pending",
+      "timestamp": null
+    },
+    "development": {
+      "status": "pending",
+      "timestamp": null
+    },
+    "pr": {
+      "status": "pending",
+      "timestamp": null
+    },
+    "merge": {
+      "status": "pending",
+      "timestamp": null
+    }
+  },
+  "current_phase": "initialization"
+}
