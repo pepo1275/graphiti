@@ -1,0 +1,26 @@
+{
+  "mcpServers": {
+    "graphiti-memory": {
+      "command": "${UV_PATH}",
+      "args": [
+        "run",
+        "--directory",
+        "${GRAPHITI_MCP_SERVER_PATH}",
+        "--project",
+        ".",
+        "main.py",
+        "--transport",
+        "stdio",
+        "--config",
+        "${GRAPHITI_MCP_SERVER_PATH}/config/config-claude-memory.yaml"
+      ],
+      "env": {
+        "NEO4J_URI": "bolt://localhost:7696",
+        "NEO4J_USER": "neo4j",
+        "NEO4J_PASSWORD": "${NEO4J_PASSWORD}",
+        "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+        "GOOGLE_API_KEY": "${GOOGLE_API_KEY}"
+      }
+    }
+  }
+}

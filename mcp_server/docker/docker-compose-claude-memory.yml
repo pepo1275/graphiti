@@ -1,0 +1,101 @@
+# ========================================
+# GRAPHITI MCP SERVER - CLAUDE MEMORY
+# Docker Compose for Neo4j + MCP Server
+# ========================================
+#
+# Uso:
+#   cd mcp_server
+#   docker compose -f docker/docker-compose-claude-memory.yml up
+#
+# Servicios:
+#   - Neo4j 5.26.0 en puertos 7476 (HTTP) y 7696 (Bolt)
+#   - MCP Server HTTP en puerto 8001
+#
+# Puertos asignados (según mapeo verificado):
+#   Host 7476 -> Container 7474 (Neo4j Browser)
+#   Host 7696 -> Container 7687 (Neo4j Bolt)
+#   Host 8001 -> Container 8000 (Graphiti MCP Server)
+#
+# Prerequisitos:
+#   - Copiar .env.claude-memory a .env y configurar API keys
+
+services:
+  # ------------------------------------------
+  # NEO4J DATABASE
+  # ------------------------------------------
+  neo4j-claude-memory:
+    image: neo4j:5.26.0
+    container_name: neo4j-claude-memory
+    ports:
+      - "7476:7474"  # HTTP Browser (puerto libre según mapeo)
+      - "7696:7687"  # Bolt protocol (puerto libre según mapeo)
+    environment:
+      - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-claudememory}
+      - NEO4J_server_memory_heap_initial__size=512m
+      - NEO4J_server_memory_heap_max__size=1G
+      - NEO4J_server_memory_pagecache_size=512m
+      # Plugins útiles para knowledge graphs
+      - NEO4J_PLUGINS=["apoc"]
+    volumes:
+      - neo4j_claude_memory_data:/data
+      - neo4j_claude_memory_logs:/logs
+    healthcheck:
+      test: ["CMD", "wget", "-O", "/dev/null", "http://localhost:7474"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - claude-memory-network
+
+  # ------------------------------------------
+  # GRAPHITI MCP SERVER (con soporte Gemini)
+  # ------------------------------------------
+  graphiti-claude-memory:
+    # Build local con Dockerfile.claude-memory que incluye google-genai
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.claude-memory
+    image: graphiti-mcp:claude-memory
+    container_name: graphiti-claude-memory
+    env_file:
+      - path: ../.env
+        required: false
+    depends_on:
+      neo4j-claude-memory:
+        condition: service_healthy
+    environment:
+      # Database - apunta al contenedor Neo4j (puerto interno 7687)
+      - NEO4J_URI=bolt://neo4j-claude-memory:7687
+      # Nota: Desde el host usar bolt://localhost:7696
+      - NEO4J_USER=${NEO4J_USER:-neo4j}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:-claudememory}
+      - NEO4J_DATABASE=${NEO4J_DATABASE:-neo4j}
+      # LLM API Keys vienen del env_file (.env)
+      # NO redeclarar aquí para evitar sobrescritura
+      # Graphiti config
+      - GRAPHITI_GROUP_ID=${GRAPHITI_GROUP_ID:-claude_desktop_sync}
+      - USER_ID=${USER_ID:-pepo}
+      - SEMAPHORE_LIMIT=${SEMAPHORE_LIMIT:-10}
+      # Paths
+      - CONFIG_PATH=/app/mcp/config/config.yaml
+      - PATH=/root/.local/bin:${PATH}
+    volumes:
+      # Usa nuestra config personalizada
+      - ../config/config-claude-memory.yaml:/app/mcp/config/config.yaml:ro
+    ports:
+      - "8001:8000"  # Puerto 8001 para no conflictuar
+    command: ["uv", "run", "main.py"]
+    networks:
+      - claude-memory-network
+
+volumes:
+  neo4j_claude_memory_data:
+    name: neo4j_claude_memory_data
+  neo4j_claude_memory_logs:
+    name: neo4j_claude_memory_logs
+
+networks:
+  claude-memory-network:
+    name: claude-memory-network
+    driver: bridge

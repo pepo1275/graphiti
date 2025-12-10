@@ -1,0 +1,385 @@
+# ========================================
+# GRAPHITI MCP SERVER - CLAUDE MEMORY
+# Sistema de Memoria Bimodal para Agentes
+# ========================================
+#
+# Este archivo configura Graphiti como memoria episódica para:
+# - Claude Desktop
+# - Claude Code
+# - Otros agentes MCP
+#
+# Soporta múltiples proveedores LLM y embeddings configurados
+# Environment variable expansion: ${VAR_NAME} o ${VAR_NAME:default}
+#
+# IMPORTANTE: Set SEMAPHORE_LIMIT según tu tier de API
+# Ver README.md "Concurrency and LLM Provider 429 Rate Limit Errors"
+
+# ==========================================
+# SERVER CONFIGURATION
+# ==========================================
+server:
+  transport: "stdio"  # Options: stdio, http (stdio for Claude Desktop/Code local)
+  host: "0.0.0.0"
+  port: 8000
+
+# ==========================================
+# LLM CONFIGURATION (Multi-Provider)
+# ==========================================
+llm:
+  # Provider activo por defecto - GEMINI como principal
+  provider: "gemini"  # Options: openai, anthropic, gemini, groq, azure_openai
+  model: "gemini-2.5-flash"  # Modelo principal para extracción
+  max_tokens: 8192
+  # temperature: null  # Omitir para modelos de reasoning
+
+  providers:
+    # --- Google Gemini (PRINCIPAL) ---
+    gemini:
+      api_key: ${GOOGLE_API_KEY}
+      project_id: ${GOOGLE_PROJECT_ID:}
+      location: ${GOOGLE_LOCATION:us-central1}
+
+    # --- OpenRouter (ALTERNATIVO) ---
+    # Usa OpenAI Generic Client con base_url de OpenRouter
+    # Para activar: cambiar provider a "openai" y model al deseado
+    # Modelos recomendados via OpenRouter:
+    #   - anthropic/claude-sonnet-4 (reasoning superior)
+    #   - google/gemini-2.5-flash (balance velocidad/calidad)
+    #   - meta-llama/llama-3.3-70b-instruct (open source)
+    openai:
+      api_key: ${OPENROUTER_API_KEY:${OPENAI_API_KEY}}
+      api_url: ${OPENROUTER_API_URL:https://openrouter.ai/api/v1}
+      organization_id: ${OPENAI_ORGANIZATION_ID:}
+
+    # --- Anthropic (Claude) ---
+    anthropic:
+      api_key: ${ANTHROPIC_API_KEY}
+      api_url: ${ANTHROPIC_API_URL:https://api.anthropic.com}
+      max_retries: 3
+
+    # --- Groq (Fast inference) ---
+    groq:
+      api_key: ${GROQ_API_KEY}
+      api_url: ${GROQ_API_URL:https://api.groq.com/openai/v1}
+
+    # --- Azure OpenAI ---
+    azure_openai:
+      api_key: ${AZURE_OPENAI_API_KEY}
+      api_url: ${AZURE_OPENAI_ENDPOINT}
+      api_version: ${AZURE_OPENAI_API_VERSION:2024-10-21}
+      deployment_name: ${AZURE_OPENAI_DEPLOYMENT}
+      use_azure_ad: ${USE_AZURE_AD:false}
+
+# ==========================================
+# OLLAMA (Local LLM) - Via OpenAI-compatible endpoint
+# ==========================================
+# Para usar Ollama, cambiar a:
+#   llm:
+#     provider: "openai"
+#     model: "llama3.2:latest"  # o tu modelo Ollama
+#   Y en providers.openai:
+#     api_url: "http://localhost:11434/v1"
+#     api_key: "ollama"  # dummy key requerida
+
+# ==========================================
+# EMBEDDER CONFIGURATION
+# ==========================================
+# RECOMENDACIÓN por fase:
+#   - Desarrollo: gemini gemini-embedding-001 (gratis, CODE_RETRIEVAL_QUERY)
+#   - Producción económica: openai text-embedding-3-small
+#   - Producción código: voyage voyage-code-3
+#   - Privacidad total: ollama via openai endpoint
+#
+# IMPORTANTE: NO usar text-embedding-004 (deprecado)
+embedder:
+  provider: "gemini"  # Options: openai, azure_openai, gemini, voyage
+  model: "gemini-embedding-001"  # Modelo estable con CODE_RETRIEVAL_QUERY
+  dimensions: 1536  # Recomendado: 768, 1536, o 3072 (MRL flexible)
+
+  providers:
+    openai:
+      api_key: ${OPENAI_API_KEY}
+      api_url: ${OPENAI_API_URL:https://api.openai.com/v1}
+      organization_id: ${OPENAI_ORGANIZATION_ID:}
+
+    azure_openai:
+      api_key: ${AZURE_OPENAI_API_KEY}
+      api_url: ${AZURE_OPENAI_EMBEDDINGS_ENDPOINT}
+      api_version: ${AZURE_OPENAI_API_VERSION:2024-10-21}
+      deployment_name: ${AZURE_OPENAI_EMBEDDINGS_DEPLOYMENT}
+      use_azure_ad: ${USE_AZURE_AD:false}
+
+    gemini:
+      api_key: ${GOOGLE_API_KEY}
+      project_id: ${GOOGLE_PROJECT_ID:}
+      location: ${GOOGLE_LOCATION:us-central1}
+
+    voyage:
+      api_key: ${VOYAGE_API_KEY}
+      api_url: ${VOYAGE_API_URL:https://api.voyageai.com/v1}
+      model: "voyage-3"
+
+# ==========================================
+# DATABASE CONFIGURATION
+# ==========================================
+database:
+  provider: "neo4j"  # Options: neo4j, falkordb
+
+  providers:
+    neo4j:
+      # Puerto 7696 asignado para claude-memory (ver docker-compose-claude-memory.yml)
+      uri: ${NEO4J_URI:bolt://localhost:7696}
+      username: ${NEO4J_USER:neo4j}
+      password: ${NEO4J_PASSWORD:claudememory}
+      database: ${NEO4J_DATABASE:neo4j}
+      use_parallel_runtime: ${USE_PARALLEL_RUNTIME:false}
+
+    falkordb:
+      uri: ${FALKORDB_URI:redis://localhost:6379}
+      password: ${FALKORDB_PASSWORD:}
+      database: ${FALKORDB_DATABASE:default_db}
+
+# ==========================================
+# GRAPHITI APPLICATION CONFIG
+# ==========================================
+graphiti:
+  # Namespace principal - ver estrategia group_id abajo
+  group_id: ${GRAPHITI_GROUP_ID:claude_desktop_sync}
+
+  # Prefijo para IDs de episodios (auto-generado por triggers)
+  episode_id_prefix: ${EPISODE_ID_PREFIX:}
+
+  # Usuario por defecto
+  user_id: ${USER_ID:pepo}
+
+  # ==========================================
+  # ENTITY TYPES - Sistema de Memoria Bimodal
+  # ==========================================
+  # 19 tipos en 6 categorías optimizados para:
+  # - Captura de episodios de agentes IA
+  # - Extracción de conocimiento estructurado
+  # - Flujo Episódica → Operativa
+
+  entity_types:
+    # ------------------------------------------
+    # CATEGORÍA 1: CONTEXTO DE DESARROLLO
+    # ------------------------------------------
+
+    - name: "Repository"
+      description: >
+        Git repositories, codebases, or project containers. Extract repository names,
+        URLs, branch names, commit references, and project identifiers. Include repository
+        type (monorepo, microservices, library) and technology stack when mentioned.
+        Examples: "graphiti-mcp-server", "neo4j-docker-materno", "Sistema_de_Grafos_de_Conocimiento_Bimodal"
+
+    - name: "CodeElement"
+      description: >
+        Specific code artifacts including functions, classes, modules, files, APIs, endpoints,
+        database schemas, configuration files. MUST include file paths, function signatures,
+        class names, and code location identifiers. Prioritize extracting reusable code patterns.
+        Examples: "add_memory() function", "config.yaml", "Entity class", "REST /api/search endpoint"
+
+    - name: "Technology"
+      description: >
+        Programming languages, frameworks, libraries, tools, services, platforms, databases.
+        Include version numbers when mentioned. Extract both primary (Python, Neo4j) and
+        supporting technologies (pytest, docker-compose). Include acronyms (MCP, REST, GraphQL).
+        Examples: "Claude Sonnet 4.5", "Neo4j 5.x", "Vertex AI", "MCP protocol", "FastAPI"
+
+    # ------------------------------------------
+    # CATEGORÍA 2: EPISODIOS DE AGENTE
+    # ------------------------------------------
+
+    - name: "UserIntent"
+      description: >
+        What the user wanted to achieve - the WHY behind the interaction. Extract goals,
+        problems to solve, desired outcomes, business objectives. PRIORITIZE capturing the
+        underlying intent over the surface request. Include motivation and expected benefits.
+        Examples: "automatizar registro de memoria", "resolver error de conexión Neo4j",
+        "optimizar búsqueda semántica", "implementar triggers automáticos"
+
+    - name: "AgentAction"
+      description: >
+        Concrete actions taken by AI agents: code written, commands executed, files modified,
+        API calls made, database queries run, decisions made, tool invocations. Include the
+        reasoning behind the action and the approach chosen. Link to CodeElement when relevant.
+        Examples: "ejecutó desktop-commander:start_process", "generó función validate_config()",
+        "creó entidad en Graphiti", "modificó userPreferences con trigger automation"
+
+    - name: "ExecutionResult"
+      description: >
+        Outcomes and outputs of actions: return values, side effects, state changes, files
+        created/modified, database records affected, system state changes. Include success
+        indicators and measurable impacts. Distinguish between expected vs actual results.
+        Examples: "episodio guardado con UUID xyz", "archivo creado en /path/file.py",
+        "proceso terminó con código 0", "memoria sincronizada: 5 cambios exportados"
+
+    - name: "Error"
+      description: >
+        Errors, exceptions, failures, bugs, issues encountered. MUST include error messages,
+        error codes, stack traces, root causes, failure context. Extract error type (syntax,
+        runtime, logical), severity, and affected components. Link to potential solutions.
+        Examples: "ConnectionError: Neo4j refused connection", "TypeError en line 42",
+        "MCP Memory unavailable", "ValidationError: missing device_id"
+
+    - name: "Solution"
+      description: >
+        Successful fixes, workarounds, resolutions to problems. Include the approach that
+        WORKED, steps taken, why it succeeded, and lessons learned. Extract reusable solution
+        patterns. Link to Error that was resolved and CodeElement that implements the fix.
+        Examples: "agregó shell='zsh' resolvió ejecución en macOS", "timeout_ms aumentado
+        evitó timeouts", "backup automático antes de comando high-risk"
+
+    # ------------------------------------------
+    # CATEGORÍA 3: CONOCIMIENTO Y APRENDIZAJE
+    # ------------------------------------------
+
+    - name: "Pattern"
+      description: >
+        Recurring patterns, best practices, idioms, proven approaches, design patterns,
+        architectural patterns. Include context where the pattern applies, prerequisites,
+        benefits, and typical use cases. Extract reusable templates and methodologies.
+        Examples: "bimodal architecture pattern", "MCP-first approach", "trigger-based automation",
+        "dual embedding strategy", "asymmetric retrieval pattern"
+
+    - name: "Antipattern"
+      description: >
+        Things that DON'T work, common mistakes, pitfalls to avoid, anti-practices, bad
+        approaches. Include WHY it fails, what went wrong, symptoms, and alternatives.
+        Extract cautionary lessons and failure modes.
+        Examples: "usar variables en comandos peligrosos sin validación", "instalar software
+        sin fase de diagnóstico separada", "no usar shell específico en desktop-commander"
+
+    - name: "Insight"
+      description: >
+        Learnings, discoveries, realizations, aha moments, knowledge gained from experience.
+        Extract non-obvious understanding, connections between concepts, optimization
+        opportunities, strategic implications. Include confidence level and validation status.
+        Examples: "Graphiti episódico + Neo4j dominio = arquitectura bimodal complementaria",
+        "triggers automáticos requieren integración metodología híbrida", "task types
+        especializados mejoran precisión embeddings 40%"
+
+    # ------------------------------------------
+    # CATEGORÍA 4: ORGANIZACIÓN Y CONTEXTO
+    # ------------------------------------------
+
+    - name: "Team"
+      description: >
+        Development teams, squads, workgroups, collaborators. People who work together on
+        projects. Include roles, responsibilities, collaboration patterns. Extract team
+        structure and communication channels.
+        Examples: "equipo backend", "data science team", "MLOps squad"
+
+    - name: "Project"
+      description: >
+        Named projects, initiatives, features being developed, research endeavors. Larger
+        than a single task or session. Include project goals, scope, timeline, stakeholders.
+        Link to Repository and Technology used.
+        Examples: "Sistema de Grafos de Conocimiento Bimodal", "Graphiti Memory MVP",
+        "PhD research on embeddings", "AEMPS pharmaceutical integration"
+
+    - name: "Session"
+      description: >
+        Time-bounded interactions with agents: work sessions, conversations, debugging
+        sessions, pair programming sessions. Include session type, duration, participants,
+        outcomes. Extract session patterns (productive, exploratory, troubleshooting).
+        Examples: "debugging Neo4j connection session", "architecture design conversation",
+        "code review session", "memory synchronization task"
+
+    # ------------------------------------------
+    # CATEGORÍA 5: PREFERENCIAS Y CONFIGURACIÓN
+    # ------------------------------------------
+
+    - name: "Preference"
+      description: >
+        User preferences for tools, styles, approaches, workflows, communication. How the
+        user likes to work. PRIORITIZE over most other types when user expresses preferences.
+        Include preference type, rationale, strength (must-have vs nice-to-have).
+        Examples: "siempre usar shell='zsh' en macOS", "preferir arquitectura MCP-first",
+        "activar safeguards automáticos para comandos high-risk", "usar embeddings duales
+        para código"
+
+    - name: "Configuration"
+      description: >
+        Settings, environment variables, config files, deployment parameters, system
+        settings, tool configurations. Include config location, format, purpose, dependencies.
+        Extract critical configurations that affect system behavior.
+        Examples: "claude_desktop_config.json MCP servers", "GRAPHITI_GROUP_ID setting",
+        "Neo4j connection string", "Vertex AI API credentials", "userPreferences triggers"
+
+    # ------------------------------------------
+    # CATEGORÍA 6: TIPOS GRAPHITI (Compatibilidad)
+    # ------------------------------------------
+
+    - name: "Requirement"
+      description: >
+        Specific needs, features, functionality that must be fulfilled. Extract functional
+        and non-functional requirements, acceptance criteria, constraints, dependencies.
+        Examples: "debe soportar múltiples dispositivos", "latencia <500ms", "compatible
+        con Neo4j 5.x"
+
+    - name: "Procedure"
+      description: >
+        Standard operating procedures, sequential instructions, step-by-step workflows,
+        operational processes. Include preconditions, steps, expected outcomes, error handling.
+        Examples: "protocolo safeguards automáticos", "flujo sincronización memoria",
+        "proceso curación episódico→operativo"
+
+    - name: "Event"
+      description: >
+        Time-bound activities, occurrences, experiences, milestones, deployments. Include
+        timestamp, participants, outcomes, significance. Extract event type and impact.
+        Examples: "despliegue MVP Graphiti 2025-08-15", "violación safeguards 2025-07-16",
+        "migración Neo4j 4.x → 5.x"
+
+    - name: "Document"
+      description: >
+        Information content: books, articles, reports, documentation, specifications, READMEs,
+        wikis. Include document type, format, location, version, authorship.
+        Examples: "Sistema_de_Grafos_de_Conocimiento_Bimodal.md", "Graphiti documentation",
+        "Neo4j MCP README", "AEMPS API specification"
+
+# ==========================================
+# ESTRATEGIA DE GROUP_ID
+# ==========================================
+# Usar según prioridad:
+#
+# NIVEL 1 - Por Dominio (PRIMARIO):
+#   graphiti_meta_analysis     - Todo sobre Graphiti
+#   embeddings_evaluation_2025 - Investigación embeddings
+#   pepo_phd_research          - Investigación doctoral
+#   knowledge_graph_platform   - Sistema bimodal KD/KE
+#   aemps_pharmaceutical       - Dominio farmacéutico
+#   materno_project            - Proyecto Materno
+#
+# NIVEL 2 - Por Agente (SECUNDARIO):
+#   claude_desktop_sync        - Claude Desktop general
+#   claude_code_sessions       - Claude Code específico
+#   cursor_interactions        - Cursor IDE
+#   ci_cd_automated            - Sistemas automatizados
+#
+# NIVEL 3 - Por Actividad (TERCIARIO):
+#   problem_solving            - Debugging
+#   test_standard              - Testing
+#   architecture_design        - Diseño
+
+# ==========================================
+# ESTRATEGIA DE EPISODE_ID_PREFIX
+# ==========================================
+# Auto-generado según triggers userPreferences:
+#
+# Por tipo sesión:
+#   coding_    - Programación
+#   debug_     - Debugging
+#   design_    - Arquitectura
+#   research_  - Investigación
+#   sync_      - Sincronización
+#   chat_      - Conversación general
+#
+# Por resultado:
+#   success_   - Operación exitosa
+#   error_     - Operación con error
+#   learning_  - Descubrimiento
+#
+# Formato: {session_type}_{outcome}_{timestamp}
+# Ejemplo: coding_success_20250808_143022
