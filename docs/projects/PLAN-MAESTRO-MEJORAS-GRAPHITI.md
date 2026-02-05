@@ -1,9 +1,9 @@
 # Plan Maestro: Mejoras de Graphiti Fork
 
-**Estado**: Propuesta para revisión
+**Estado**: En ejecución (Fase -1 y 0 completadas)
 **Autor**: Pepo + Claude
-**Fecha**: 2026-01-31
-**Versión**: 1.0
+**Fecha**: 2026-01-31 (actualizado 2026-02-05)
+**Versión**: 1.1
 
 ---
 
@@ -17,17 +17,22 @@ Mantener un fork de Graphiti que:
 3. **Esté documentado** - Trazabilidad completa de cambios y decisiones
 4. **Sea desplegable** - En múltiples entornos (local, AuraDB, Docker)
 
-### 1.2 Estado Actual
+### 1.2 Estado Actual (actualizado 2026-02-05)
 
 ```
 getzep/graphiti (upstream)     pepo1275/graphiti (fork)
          |                              |
-    c36723c (actual)              6c9824b (40 commits atrás)
+    affca93 (actual)              ac21101 (main, sincronizado)
          |                              |
+         |                     +-- Fase -1: CI/CD adaptado ✅
+         |                     +-- Fase 0: Sync upstream ✅
          |                     +-- Configs personalizadas
-         |                     +-- CLAUDE.md
-         |                     +-- Docs de deployment
+         |                     +-- CLAUDE.md + docs/projects/
          |                     +-- Entity Types personalizados
+         |
+    ⚠️ upstream/chore/gemini-improvements (no mergeado)
+         |     → Refactor mayor (188 archivos, -24K líneas)
+         |     → Ver sección 7.2 para impacto
 ```
 
 ### 1.3 Principio de Diseño
@@ -131,209 +136,263 @@ mv .github/workflows/release*.yml .github/workflows-upstream-disabled/
 
 ### 2.5 Archivos que PUEDEN conflictuar (requieren cuidado)
 
-| Archivo | Estrategia |
-|---------|------------|
-| `graphiti_core/embedder/gemini.py` | Cambios aditivos con flags |
-| `graphiti_core/embedder/client.py` | Mantener compatibilidad |
-| `graphiti_core/nodes.py` | Campos opcionales nuevos |
-| `graphiti_core/edges.py` | Campos opcionales nuevos |
-| `pyproject.toml` | Solo añadir deps si necesario |
+| Archivo | Estrategia | Fase |
+|---------|------------|------|
+| `graphiti_core/embedder/gemini.py` | Cambios aditivos marcados `# [FORK]` | 1 |
+| `graphiti_core/embedder/client.py` | **NO TOCAR** — override solo en GeminiEmbedderConfig | — |
+| `graphiti_core/nodes.py` | Campos opcionales con `default=None` | 2 |
+| `graphiti_core/edges.py` | Campos opcionales con `default=None` | 2 |
+| `graphiti_core/search/search_utils.py` | Función helper aditiva para selector | 2 |
+| `tests/embedder/test_gemini_fork.py` | **Archivo NUEVO** — tests propios separados | 1 |
 
 ---
 
 ## 3. Roadmap de Mejoras
 
-### 3.1 Diagrama de Dependencias
+### 3.1 Diagrama de Dependencias (actualizado 2026-02-05)
 
 ```
 +------------------+
-|  FASE -1         |
-|  Preparar CI/CD  |  <-- NUEVO: Resolver problemas de workflows
+|  FASE -1         |  ✅ COMPLETADA
+|  Preparar CI/CD  |
 +--------+---------+
          |
          v
 +------------------+
-|  FASE 0          |
+|  FASE 0          |  ✅ COMPLETADA
 |  Sync Upstream   |
 +--------+---------+
          |
          v
-+------------------+     +------------------+
-|  FASE 1          |     |  FASE 2          |
-|  Fix Embeddings  +---->+  Task Types      |
-|  (Normalización) |     |  (Gemini API)    |
-+--------+---------+     +--------+---------+
-         |                        |
-         v                        v
-+------------------+     +------------------+
-|  FASE 3          |     |  FASE 4          |
-|  Campos Duales   +---->+  Reprocesar      |
-|  (Experimental)  |     |  Embeddings      |
-+--------+---------+     +--------+---------+
-         |                        |
-         +------------+-----------+
-                      |
-                      v
-              +------------------+
-              |  FASE 5          |
-              |  Evaluación      |
-              |  y Decisión      |
-              +------------------+
-                      |
-                      v
-              +------------------+
-              |  FASE 6          |
-              |  Release         |
-              |  pepo-v1.0       |
-              +------------------+
++-------------------------------+
+|  FASE 1                       |  ← SIGUIENTE
+|  Embeddings Gemini Avanzados  |
+|  (Normalización + Modelo +    |
+|   Task Types)                 |
+|  Archivo único: gemini.py     |
++--------+----------------------+
+         |
+         v
++-------------------------------+
+|  FASE 2                       |
+|  Campos Duales                |
+|  (name_embedding_enhanced +   |
+|   fact_embedding_enhanced)    |
+|  Índices Neo4j 3072D          |
++--------+----------------------+
+         |
+         v
++-------------------------------+
+|  FASE 3                       |
+|  Reprocesamiento              |
+|  (Scripts standalone, $0)     |
++--------+----------------------+
+         |
+         v
++-------------------------------+
+|  FASE 4                       |
+|  Evaluación y Decisión        |
+|  (1024 vs 3072, task_types)   |
++--------+----------------------+
+         |
+         v
++-------------------------------+
+|  FASE 5                       |
+|  Release pepo-v1.0            |
++-------------------------------+
 ```
+
+**Cambio vs plan original**: Fases 1+2 originales (normalización + task types) se fusionaron
+en una sola porque tocan el mismo archivo (`gemini.py`) y son ~35 líneas cohesivas.
+Esto reduce de 7 fases a 6 (realmente 5 pendientes) y minimiza superficie de conflicto.
 
 ### 3.2 Detalle de Fases
 
-#### FASE 0: Sincronización con Upstream
-**Documento**: N/A (proceso técnico)
-**Duración estimada**: 2-4 horas
-**Prerequisito para**: Todas las demás fases
+#### FASE -1: Preparar CI/CD ✅ COMPLETADA (2026-02-05)
+- Commit: `983f848`
+- Runners cambiados a ubuntu-22.04
+- 7 workflows desactivados a `.github/workflows-upstream-disabled/`
+- Tests: F-1-T1 a F-1-T8 PASS
 
-**Tareas:**
-- [ ] Backup del estado actual
-- [ ] Merge upstream/main -> main
-- [ ] Resolver conflictos en mcp_server/config/
-- [ ] Verificar que tests pasan
-- [ ] Documentar cambios importantes de upstream
-
-**Criterio de aceptación:**
-- `make test` pasa
-- Configs personalizadas preservadas
-- CHANGELOG-FORK.md actualizado
+#### FASE 0: Sincronización con Upstream ✅ COMPLETADA (2026-02-05)
+- Merge commit: `9e6b2a0` (upstream affca93 → fork main)
+- Formatting fix: `ac21101`
+- 0 conflictos (git rename tracking funcionó perfectamente)
+- Push a origin vía SSH (fix de OAuth workflow scope)
+- Tests: 249 passed, Pyright 0 errores (mejorado de 28)
 
 ---
 
-#### FASE 1: Fix Embeddings (Normalización)
-**Documento**: [PLAN-EMBEDDINGS-GEMINI-AVANZADO.md](./PLAN-EMBEDDINGS-GEMINI-AVANZADO.md) - Sección 3
-**Duración estimada**: 2-4 horas
-**Prerequisito para**: Fase 2, 3
+#### FASE 1: Embeddings Gemini Avanzados (Normalización + Modelo + Task Types)
+**Documento**: [PLAN-EMBEDDINGS-GEMINI-AVANZADO.md](./PLAN-EMBEDDINGS-GEMINI-AVANZADO.md)
+**Duración estimada**: 4-6 horas
+**Prerequisito para**: Fase 2
 
-**Cambios en código:**
+**¿Por qué se fusionaron las antiguas Fases 1 y 2?**
+Normalización, cambio de modelo y task types tocan el mismo archivo (`gemini.py`).
+Separarlas creaba 2 commits/PRs innecesarios y duplicaba riesgo de conflicto.
+
+**Archivos modificados:**
+
+| Archivo | Cambio | Líneas |
+|---------|--------|--------|
+| `graphiti_core/embedder/gemini.py` | Normalización, modelo, GeminiTaskType enum, task_type en create()/create_batch() | ~35 |
+| `tests/embedder/test_gemini_fork.py` | **NUEVO** — Tests de normalización, task_types, modelo | ~100 |
+
+**Archivos que NO se tocan:**
+
+| Archivo | Por qué no |
+|---------|-----------|
+| `graphiti_core/embedder/client.py` | `EMBEDDING_DIM=1024` es global para todos los embedders. Override solo en `GeminiEmbedderConfig` |
+| `graphiti_core/helpers.py` | Ya tiene `normalize_l2()` que reutilizamos — no hace falta tocar |
+| `graphiti_core/nodes.py` | Campos duales son Fase 2, no mezclar |
+| `graphiti_core/edges.py` | Igual |
+
+**Cambios concretos en `gemini.py`:**
+
 ```python
-# graphiti_core/embedder/gemini.py
-# Añadir normalización condicional
+# 1.1 — Modelo default (1 línea)
+DEFAULT_EMBEDDING_MODEL = 'gemini-embedding-001'  # [FORK] Upgraded from text-embedding-001
 
-NORMALIZE_EMBEDDINGS = os.getenv('GRAPHITI_NORMALIZE_EMBEDDINGS', 'true').lower() == 'true'
+# 1.2 — Enum de task types (~15 líneas)
+class GeminiTaskType(str, Enum):  # [FORK]
+    RETRIEVAL_QUERY = 'RETRIEVAL_QUERY'
+    RETRIEVAL_DOCUMENT = 'RETRIEVAL_DOCUMENT'
+    CODE_RETRIEVAL_QUERY = 'CODE_RETRIEVAL_QUERY'
+    SEMANTIC_SIMILARITY = 'SEMANTIC_SIMILARITY'
+    CLASSIFICATION = 'CLASSIFICATION'
+    CLUSTERING = 'CLUSTERING'
+    QUESTION_ANSWERING = 'QUESTION_ANSWERING'
+    FACT_VERIFICATION = 'FACT_VERIFICATION'
 
-def _normalize(self, embedding: list[float]) -> list[float]:
-    import numpy as np
-    arr = np.array(embedding)
-    norm = np.linalg.norm(arr)
-    return (arr / norm).tolist() if norm > 0 else embedding
+# 1.3 — Config con override de dimensión y task_type (~3 líneas)
+class GeminiEmbedderConfig(EmbedderConfig):
+    embedding_model: str = Field(default=DEFAULT_EMBEDDING_MODEL)
+    embedding_dim: int = Field(default=3072)  # [FORK] Override Gemini to 3072D
+    api_key: str | None = None
+    task_type: GeminiTaskType | None = Field(default=None)  # [FORK]
 
-# En create():
-if NORMALIZE_EMBEDDINGS and self.config.embedding_dim < 3072:
-    embedding = self._normalize(embedding)
+# 1.4 — Normalización y task_type en create() (~10 líneas)
+async def create(self, input_data, task_type=None) -> list[float]:
+    effective_task_type = task_type or self.config.task_type
+    config_params = {'output_dimensionality': self.config.embedding_dim}
+    if effective_task_type:
+        config_params['task_type'] = str(effective_task_type)
+    result = await self.client.aio.models.embed_content(
+        model=..., contents=[input_data],
+        config=types.EmbedContentConfig(**config_params),
+    )
+    embedding = result.embeddings[0].values
+    # [FORK] Normalize for dim < 3072 (Google only pre-normalizes 3072D)
+    if self.config.embedding_dim < 3072:
+        from graphiti_core.helpers import normalize_l2
+        embedding = normalize_l2(embedding).tolist()
+    return embedding
 ```
 
 **Compatibilidad upstream:**
-- Flag `GRAPHITI_NORMALIZE_EMBEDDINGS=true` (default)
-- Si upstream añade normalización, desactivar con `false`
+- Todos los cambios marcados con `# [FORK]`
+- `task_type=None` por defecto → comportamiento upstream intacto
+- Normalización solo aplica cuando `dim < 3072` → 3072D se comporta igual que antes
+- Si upstream mergea `gemini-improvements`: conflicto solo en este archivo, resolución ~5 min
+- Validación de modelo con task_type: warning si el modelo no soporta task_types
 
 ---
 
-#### FASE 2: Task Types de Gemini
-**Documento**: [PLAN-EMBEDDINGS-GEMINI-AVANZADO.md](./PLAN-EMBEDDINGS-GEMINI-AVANZADO.md) - Sección 2
-**Duración estimada**: 4-6 horas
+#### FASE 2: Campos Duales (Experimental)
+**Documento**: [PLAN-EMBEDDINGS-GEMINI-AVANZADO.md](./PLAN-EMBEDDINGS-GEMINI-AVANZADO.md) - Sección 5
+**Duración estimada**: 1-2 días
 **Prerequisito para**: Fase 3
 
-**Cambios en código:**
+**Objetivo**: Permitir experimentación A/B manteniendo embeddings actuales funcionando.
+"Primero hacerlo duplicado y hacer pruebas para ver si merece la pena" — Pepo.
+
+**Archivos modificados:**
+
+| Archivo | Cambio |
+|---------|--------|
+| `graphiti_core/nodes.py` | Campo `name_embedding_enhanced: list[float] \| None = Field(default=None)` |
+| `graphiti_core/edges.py` | Campo `fact_embedding_enhanced: list[float] \| None = Field(default=None)` |
+| `graphiti_core/search/search_utils.py` | Función selector `# [FORK]`: usar enhanced si existe, fallback a standard |
+| Script Neo4j o `graph_queries.py` | Índice vector separado: `CREATE VECTOR INDEX ... OPTIONS {vector.dimensions: 3072}` |
+
+**Cómo funciona la generación dual:**
 ```python
-# graphiti_core/embedder/gemini.py
-
-class GeminiTaskType(str, Enum):
-    RETRIEVAL_QUERY = "RETRIEVAL_QUERY"
-    RETRIEVAL_DOCUMENT = "RETRIEVAL_DOCUMENT"
-    CODE_RETRIEVAL_QUERY = "CODE_RETRIEVAL_QUERY"
-    # ... resto
-
-class GeminiEmbedderConfig(EmbedderConfig):
-    # Campos existentes...
-    task_type: str | None = Field(default=None)  # NUEVO, opcional
+# En EntityNode.generate_name_embedding():
+# 1. Genera embedding standard (comportamiento upstream intacto)
+self.name_embedding = await embedder.create(input_data=[text])
+# 2. Si embedder es Gemini con config enhanced, genera 3072D también
+if hasattr(embedder, 'config') and hasattr(embedder.config, 'task_type'):
+    self.name_embedding_enhanced = await embedder.create(
+        input_data=[text],
+        task_type='RETRIEVAL_DOCUMENT'
+    )
 ```
 
 **Compatibilidad upstream:**
-- `task_type=None` por defecto (comportamiento upstream)
-- Solo se usa si se configura explícitamente
+- Campos con `default=None` → Neo4j ignora si no se usan
+- Upstream no tiene campos `*_enhanced` → no puede conflictear
+- Si upstream elimina `GraphOperationsInterface` (gemini-improvements): irrelevante,
+  nuestros campos son propiedades Pydantic, no métodos de interfaz
+
+**Riesgo con upstream/chore/gemini-improvements:**
+- `nodes.py` y `edges.py` cambian mucho en esa rama (eliminan métodos de interfaz)
+- Pero nuestros cambios son **adiciones al modelo** (campos), no a los métodos
+- Git merge: upstream reorganiza métodos + nosotros añadimos campos = sin conflicto real
 
 ---
 
-#### FASE 3: Campos Duales (Experimental)
-**Documento**: [PLAN-EMBEDDINGS-GEMINI-AVANZADO.md](./PLAN-EMBEDDINGS-GEMINI-AVANZADO.md) - Sección 5
-**Duración estimada**: 1-2 días
+#### FASE 3: Reprocesamiento de Embeddings
+**Duración estimada**: Variable (depende de volumen de datos)
 **Prerequisito para**: Fase 4
 
-**Cambios en código:**
-```python
-# graphiti_core/nodes.py
+**Objetivo**: Regenerar embeddings existentes a 3072D con task_type en los campos `*_enhanced`.
 
-class EntityNode(BaseModel):
-    # Campos existentes (upstream)
-    name_embedding: list[float] | None = Field(...)
-
-    # Campos nuevos (fork) - OPCIONALES
-    name_embedding_enhanced: list[float] | None = Field(
-        default=None,
-        description='[FORK] Enhanced embedding at 3072D with task_type'
-    )
-    name_embedding_config: dict | None = Field(
-        default=None,
-        description='[FORK] Config used for enhanced embedding'
-    )
-```
-
-**Compatibilidad upstream:**
-- Campos marcados con `[FORK]` en descripción
-- Default `None` - no afecta comportamiento existente
-- Neo4j ignora propiedades no usadas
-
----
-
-#### FASE 4: Reprocesamiento de Embeddings
-**Documento**: [PLAN-EMBEDDINGS-GEMINI-AVANZADO.md](./PLAN-EMBEDDINGS-GEMINI-AVANZADO.md) - Sección 4
-**Duración estimada**: Variable (depende de datos)
-**Prerequisito para**: Fase 5
-
-**Scripts a crear:**
+**Scripts a crear (todos son archivos nuevos, 0 conflicto):**
 ```
 scripts/
-  +-- pepo-reprocess-embeddings.py    # Regenerar embeddings
-  +-- pepo-backup-neo4j.py            # Backup antes de migrar
-  +-- pepo-validate-embeddings.py     # Validar integridad
+  +-- pepo-reprocess-embeddings.py    # Lee nodos/edges de Neo4j, regenera a 3072D
+  +-- pepo-backup-neo4j.py            # Dump de embeddings antes de migrar
 ```
 
-**Compatibilidad upstream:**
-- Scripts en directorio separado con prefijo `pepo-`
-- No modifican comportamiento de graphiti_core
+**Características:**
+- `--dry-run` para previsualizar sin ejecutar
+- Coste: $0 (Gemini embeddings API es gratuita)
+- Velocidad: ~100ms/embedding → 1000 nodos en ~10 min
+- Escribe SOLO en `*_enhanced`, no toca embeddings originales
+- Standalone: conecta directamente a Neo4j, no depende de MCP server
 
 ---
 
-#### FASE 5: Evaluación y Decisión
-**Documento**: [PLAN-EMBEDDINGS-GEMINI-AVANZADO.md](./PLAN-EMBEDDINGS-GEMINI-AVANZADO.md) - Sección 5
+#### FASE 4: Evaluación y Decisión
 **Duración estimada**: 1-2 días
 
+**Objetivo**: Comparar calidad `name_embedding` (1024D) vs `name_embedding_enhanced` (3072D + task_type).
+
 **Scripts a crear:**
 ```
 scripts/
-  +-- pepo-evaluate-embeddings.py     # Comparar calidad
-  +-- pepo-benchmark-search.py        # Benchmark de búsqueda
+  +-- pepo-evaluate-embeddings.py     # Comparar calidad de búsqueda
+  +-- pepo-benchmark-search.py        # Benchmark de latencia y precisión
 ```
 
-**Métricas a evaluar:**
-- Recall@10 en búsquedas
-- Precisión en deduplicación
-- Tiempo de generación
-- Almacenamiento
+**Métricas:**
+- Recall@10 en búsquedas semánticas
+- Precisión en deduplicación (SEMANTIC_SIMILARITY)
+- Calidad de búsqueda de código (CODE_RETRIEVAL_QUERY vs genérico)
+- Almacenamiento Neo4j (3072D = ~3x más espacio)
+- Latencia de generación y búsqueda
+
+**Decisión resultante:**
+| Resultado | Acción |
+|-----------|--------|
+| 3072D mejora significativamente | Migrar `name_embedding` a 3072D, eliminar `*_enhanced` |
+| No mejora | Quedarse con 1024D, usar task_types solo donde aporte |
+| Mejora solo para ciertos tipos | Config per entity type (idea Matryoshka) |
 
 ---
 
-#### FASE 6: Release pepo-v1.0
+#### FASE 5: Release pepo-v1.0
 **Duración estimada**: 2-4 horas
 
 **Tareas:**
@@ -516,6 +575,8 @@ git merge upstream/main
 
 ## 7. Matriz de Riesgos del Plan Completo
 
+### 7.1 Riesgos Generales
+
 | Riesgo | Prob. | Impacto | Mitigación |
 |--------|-------|---------|------------|
 | Conflictos complejos en sync | Alta | Medio | Backup + feature branches |
@@ -523,6 +584,38 @@ git merge upstream/main
 | Upstream cambia embedder | Baja | Alto | Flags configurables, ADRs |
 | Pérdida de trazabilidad | Media | Medio | CHANGELOG obligatorio |
 | Incompatibilidad futura | Media | Alto | Principio de cambios aditivos |
+
+### 7.2 ⚠️ RIESGO CRÍTICO: upstream/chore/gemini-improvements
+
+**Rama upstream no mergeada** que contiene un refactor mayor de Graphiti (188 archivos, -24,000 líneas neto).
+**Detección automática**: `scripts/check-upstream-impact.sh`
+**Documentación detallada**: [CHANGELOG-FORK.md — Upstream Watch Flags](../changelog/CHANGELOG-FORK.md)
+
+#### Impactos clasificados por severidad
+
+| Impacto | Severidad | Qué pasa | Acción requerida |
+|---------|-----------|----------|-----------------|
+| **MCP Server reescrito** | 🔴 Alta | `mcp_server/src/` eliminado, nuevo flat file | Adaptar docker-compose, migrar config YAML→ENV |
+| **Embedder factory sin Gemini** | 🔴 Alta | `create_client()` solo soporta OpenAI/Azure | Añadir path Gemini con detección de GOOGLE_API_KEY |
+| **Entity Types hardcoded** | 🟡 Media | Solo 3 tipos (Requirement/Preference/Procedure) | Crear loader extensible para nuestros 19 tipos |
+| **Tool renombrada** | 🟡 Media | `search_nodes` → `search_memory_nodes` | Actualizar CLAUDE.md y prompts |
+| **Interfaces eliminadas** | 🟡 Media | GraphOperationsInterface + SearchInterface gone | Nuestros campos duales no dependen de ellas |
+| **Gemini embedder simplificado** | 🟢 Baja | Constructor reducido, batch simplificado | Nuestros cambios son aditivos, conflicto solo en gemini.py |
+| **Content chunking eliminado** | 🟢 Baja | `content_chunking.py` removido | No afecta nuestro plan de embeddings |
+
+#### Principio de mitigación
+
+> **"Un solo archivo de conflicto"**: Si upstream mergea gemini-improvements,
+> el ÚNICO archivo donde tendremos conflicto real en Fase 1 es `gemini.py`.
+> Todo lo demás son archivos nuevos nuestros o campos con `default=None`.
+> La adaptación del MCP server es trabajo separado (4-8h).
+
+#### Señales de que upstream está por mergear
+
+1. PR abierto desde `chore/gemini-improvements` a `main`
+2. Actividad reciente en la rama (últimos 7 días)
+3. Bump de versión en `pyproject.toml` a nueva major
+4. Changelog de upstream menciona "v2" o "breaking changes"
 
 ---
 

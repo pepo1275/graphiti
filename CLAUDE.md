@@ -4,7 +4,223 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Graphiti is a Python framework for building temporally-aware knowledge graphs designed for AI agents. It enables real-time incremental updates to knowledge graphs without batch recomputation, making it suitable for dynamic environments.
+**Graphiti** is a Python framework for building temporally-aware knowledge graphs designed for AI agents. It enables real-time incremental updates to knowledge graphs without batch recomputation, making it suitable for dynamic environments.
+
+**Este fork** incluye configuración personalizada para:
+- Sistema de memoria episódica para Claude Desktop/Code
+- 19 Entity Types para captura de episodios de agentes IA
+- Metodología RPVEA 2.0 para desarrollo
+
+---
+
+## Subagentes Disponibles
+
+### @memory-architect
+**Role**: Diseño de Entity Types y schema de memoria
+**Skill**: `.claude/skills/memory-architect/SKILL.md`
+**Use for**:
+- Diseñar Entity Types para nuevos dominios
+- Evaluar modelos de embeddings
+- Configurar estrategias de group_id
+- Arquitectura bimodal episódica/operativa
+
+### @deployment-engineer
+**Role**: Despliegue Docker y configuración MCP
+**Skill**: `.claude/skills/deployment-engineer/SKILL.md`
+**Use for**:
+- Configurar Docker Compose
+- Gestionar puertos y redes
+- Integrar con Claude Desktop/Code
+- Troubleshooting de conexiones
+
+### @graph-inspector
+**Role**: Análisis y validación de grafos
+**Skill**: `.claude/skills/graph-inspector/SKILL.md`
+**Use for**:
+- Verificar estado de base de datos
+- Validar migraciones
+- Debugging de datos
+- Auditoría de integridad
+
+---
+
+## MCP Tools Available
+
+### neo4j-docker-graphiti (Graphiti Legacy)
+```
+mcp__neo4j-docker-graphiti__graphiti-get_neo4j_schema
+mcp__neo4j-docker-graphiti__graphiti-read_neo4j_cypher
+mcp__neo4j-docker-graphiti__graphiti-write_neo4j_cypher
+```
+
+### neo4j-data-modeling (Validación de Modelos)
+```
+mcp__neo4j-data-modeling__validate_node
+mcp__neo4j-data-modeling__validate_relationship
+mcp__neo4j-data-modeling__validate_data_model
+mcp__neo4j-data-modeling__get_mermaid_config_str
+mcp__neo4j-data-modeling__export_to_arrows_json
+```
+
+---
+
+## RPVEA 2.0 Metodología (Adaptada para Graphiti)
+
+### Workflow para Configuración de Memoria
+
+```
+R - RESEARCH (15-20 min)
+    Subagent: @memory-architect + @graph-inspector
+
+    ### R.1 Análisis de Requisitos
+    - Identificar dominio y casos de uso
+    - Revisar Entity Types existentes
+    - Documentar necesidades de búsqueda (semántica, código, general)
+
+    ### R.2 Revisión de Infraestructura
+    - Mapear puertos ocupados
+    - Verificar MCPs existentes
+    - Revisar configuraciones Neo4j activas
+
+    Deliverable: docs/rpvea/[proyecto]_research.md
+
+P - PREPARE (10-15 min)
+    Subagent: @memory-architect
+    - Diseñar Entity Types
+    - Seleccionar embeddings (ver Decision Matrix)
+    - Crear config YAML
+    - Validar con MCP neo4j-data-modeling
+
+    Deliverable: mcp_server/config/config-[proyecto].yaml
+
+V - VALIDATE (10-15 min)
+    Subagent: @graph-inspector
+    - Verificar sintaxis YAML
+    - Validar schema con MCP
+    - Probar conexión Neo4j (si ya desplegado)
+
+    Deliverable: Validation report
+
+E - EXECUTE (variable)
+    Subagent: @deployment-engineer
+    - Crear docker-compose
+    - Desplegar servicios
+    - Configurar Claude Desktop
+    - USUARIO verifica funcionamiento
+
+    Deliverable: docker/docker-compose-[proyecto].yml
+
+A - ASSESS (10 min)
+    - Verificar MCP funciona en Claude Desktop
+    - Test de add_memory / search
+    - Documentar en checkpoint
+
+    Deliverable: checkpoints/CHECKPOINT-[nn]-[proyecto].md
+```
+
+---
+
+## Decision Matrix - Embeddings
+
+| Caso de Uso | Proveedor | Modelo | Coste |
+|-------------|-----------|--------|-------|
+| **Desarrollo** | Gemini | gemini-embedding-001 | $0 |
+| **Producción económica** | OpenAI | text-embedding-3-small | $0.02/1M |
+| **Código especializado** | Voyage | voyage-code-3 | $0.06/1M |
+| **Privacidad total** | Ollama | nomic-embed-text | $0 (local) |
+
+**IMPORTANTE**: No usar `text-embedding-004` de Gemini (deprecado).
+
+---
+
+## Port Mapping (Este Fork)
+
+| Proyecto | Neo4j HTTP | Neo4j Bolt | MCP Server |
+|----------|------------|------------|------------|
+| graphiti (legacy) | 8690 | 7690 | - |
+| **claude-memory** | **7476** | **7696** | **8001** |
+
+---
+
+## Reglas de Oro
+
+### 1. SIEMPRE verificar puertos antes de configurar
+```bash
+docker ps --format "{{.Names}}\t{{.Ports}}"
+lsof -i -P -n | grep LISTEN | grep -E '747|768|769'
+```
+
+### 2. Naming Conventions
+```yaml
+# Containers
+neo4j-{proyecto}
+graphiti-{proyecto}
+
+# Config files
+config-{proyecto}.yaml
+docker-compose-{proyecto}.yml
+
+# Checkpoints
+CHECKPOINT-{nn}-{descripcion}.md
+```
+
+### 3. NUNCA hardcodear credenciales
+```yaml
+# ✅ CORRECTO
+password: ${NEO4J_PASSWORD:default}
+
+# ❌ INCORRECTO
+password: "mi_password_real"
+```
+
+---
+
+## Estructura del Proyecto (Este Fork)
+
+```
+/graphiti-new/
+├── CLAUDE.md                    # Este archivo
+├── .claude/
+│   └── skills/                  # Definición de agentes
+│       ├── memory-architect/
+│       ├── deployment-engineer/
+│       └── graph-inspector/
+├── checkpoints/                 # Checkpoints RPVEA
+├── docs/
+│   ├── EVALUACION-EMBEDDINGS-MEMORIA.md
+│   └── rpvea/                   # Documentación RPVEA
+├── graphiti_core/               # Core library (upstream)
+├── mcp_server/
+│   ├── config/
+│   │   └── config-claude-memory.yaml  # Config personalizada
+│   └── docker/
+│       └── docker-compose-claude-memory.yml
+├── server/                      # REST API (upstream)
+└── tests/
+```
+
+---
+
+## Quick Start - Claude Memory
+
+```bash
+# 1. Configurar variables de entorno
+cd mcp_server
+cp .env.example .env
+# Editar .env con API keys
+
+# 2. Desplegar
+docker compose -f docker/docker-compose-claude-memory.yml up -d
+
+# 3. Verificar
+curl http://localhost:8001/health
+open http://localhost:7476  # Neo4j Browser
+
+# 4. Configurar Claude Desktop
+# Editar ~/Library/Application Support/Claude/claude_desktop_config.json
+```
+
+---
 
 Key features:
 
